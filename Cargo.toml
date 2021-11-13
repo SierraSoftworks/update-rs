@@ -1,0 +1,25 @@
+[package]
+name = "update"
+authors = ["Benjamin Pannell <benjamin@pannell.dev>"]
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+async-trait = "0.1"
+http = "0.2"
+human-errors = "0.1.2"
+futures = "0.3"
+itertools = "0.10"
+log = "0.4"
+reqwest = { version = "0.11.6", default-features = false, features = ["rustls-tls", "json", "stream"] }
+semver = "1.0"
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde_json = "1.0"
+tokio = { version = "1.13", features = ["rt", "time", "fs", "process", "macros", "signal"] }
+
+
+[dev-dependencies]
+mocktopus = "0.7.11"
+tempfile = "3.2"
+tokio-test = "0.4"
