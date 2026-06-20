@@ -1,68 +1,75 @@
-use super::release::*;
-use super::Error;
 use serde::{Deserialize, Serialize};
-use std::io;
+use std::fmt::Display;
 use std::path::PathBuf;
 
-#[async_trait::async_trait]
-pub trait Source: Send + Sync {
-    async fn get_releases(&self) -> Result<Vec<Release>, Error>;
-    async fn get_binary<W: io::Write + Send>(
-        &self,
-        release: &Release,
-        variant: &ReleaseVariant,
-        into: &mut W,
-    ) -> Result<(), Error>;
-}
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+/// The phase of the three-phase update process which an [`UpdateState`] is in.
+///
+/// The update is driven forward by relaunching the application between phases,
+/// passing a serialized [`UpdateState`] each time (see
+/// [`RESUME_FLAG`](crate::RESUME_FLAG)). Each phase runs from a *different*
+/// binary so that the running executable is never asked to overwrite itself.
+#[derive(Default, Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
 pub enum UpdatePhase {
+    /// No update is in progress (the default, used when resuming with no state).
+    #[default]
     #[serde(rename = "no-update")]
     NoUpdate,
+    /// The original application has downloaded the new binary and is about to
+    /// launch it to perform the `replace` phase.
     #[serde(rename = "prepare")]
     Prepare,
+    /// The freshly downloaded binary overwrites the original application and
+    /// launches it to perform the `cleanup` phase.
     #[serde(rename = "replace")]
     Replace,
+    /// The updated original application removes the temporary downloaded binary.
     #[serde(rename = "cleanup")]
     Cleanup,
 }
 
-impl Default for UpdatePhase {
-    fn default() -> Self {
-        UpdatePhase::NoUpdate
-    }
-}
-
-impl ToString for UpdatePhase {
-    fn to_string(&self) -> String {
+impl Display for UpdatePhase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            UpdatePhase::NoUpdate => "no-update",
-            UpdatePhase::Prepare => "prepare",
-            UpdatePhase::Replace => "replace",
-            UpdatePhase::Cleanup => "cleanup",
+            UpdatePhase::NoUpdate => write!(f, "no-update"),
+            UpdatePhase::Prepare => write!(f, "prepare"),
+            UpdatePhase::Replace => write!(f, "replace"),
+            UpdatePhase::Cleanup => write!(f, "cleanup"),
         }
-        .to_string()
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+/// The serializable state which is threaded through the three phases of an
+/// update by relaunching the application with the
+/// [`RESUME_FLAG`](crate::RESUME_FLAG) followed by this value as JSON.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct UpdateState {
+    /// The path to the application binary which is being updated.
     #[serde(rename = "app", default, skip_serializing_if = "Option::is_none")]
     pub target_application: Option<PathBuf>,
 
+    /// The path to the temporary binary which the new release was downloaded to.
     #[serde(rename = "update", default, skip_serializing_if = "Option::is_none")]
     pub temporary_application: Option<PathBuf>,
 
+    /// The phase of the update process which this state represents.
     pub phase: UpdatePhase,
 }
 
 impl UpdateState {
+    /// Produce a copy of this state advanced to the provided [`UpdatePhase`],
+    /// preserving the application paths.
     pub fn for_phase(&self, phase: UpdatePhase) -> Self {
         UpdateState {
             target_application: self.target_application.clone(),
             temporary_application: self.temporary_application.clone(),
             phase,
         }
+    }
+}
+
+impl Display for UpdateState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.phase)
     }
 }
 
@@ -74,22 +81,22 @@ mod tests {
     fn test_serialize() {
         assert_eq!(
             serde_json::to_string(&UpdateState {
-                target_application: Some(PathBuf::from("/bin/git-tool")),
-                temporary_application: Some(PathBuf::from("/tmp/git-tool-update")),
+                target_application: Some(PathBuf::from("/bin/app")),
+                temporary_application: Some(PathBuf::from("/tmp/app-update")),
                 phase: UpdatePhase::Replace
             })
             .unwrap(),
-            r#"{"app":"/bin/git-tool","update":"/tmp/git-tool-update","phase":"replace"}"#
+            r#"{"app":"/bin/app","update":"/tmp/app-update","phase":"replace"}"#
         );
 
         assert_eq!(
             serde_json::to_string(&UpdateState {
                 target_application: None,
-                temporary_application: Some(PathBuf::from("/tmp/git-tool-update")),
+                temporary_application: Some(PathBuf::from("/tmp/app-update")),
                 phase: UpdatePhase::Cleanup
             })
             .unwrap(),
-            r#"{"update":"/tmp/git-tool-update","phase":"cleanup"}"#
+            r#"{"update":"/tmp/app-update","phase":"cleanup"}"#
         );
     }
 
@@ -97,12 +104,12 @@ mod tests {
     fn test_deserialize() {
         let update = UpdateState {
             target_application: None,
-            temporary_application: Some(PathBuf::from("/tmp/git-tool-update")),
+            temporary_application: Some(PathBuf::from("/tmp/app-update")),
             phase: UpdatePhase::Cleanup,
         };
 
         let deserialized: UpdateState =
-            serde_json::from_str(r#"{"update":"/tmp/git-tool-update","phase":"cleanup"}"#).unwrap();
+            serde_json::from_str(r#"{"update":"/tmp/app-update","phase":"cleanup"}"#).unwrap();
         assert_eq!(deserialized, update);
     }
 
@@ -117,8 +124,8 @@ mod tests {
     #[test]
     fn test_for_phase() {
         let update = UpdateState {
-            target_application: Some(PathBuf::from("/bin/git-tool")),
-            temporary_application: Some(PathBuf::from("/tmp/git-tool-update")),
+            target_application: Some(PathBuf::from("/bin/app")),
+            temporary_application: Some(PathBuf::from("/tmp/app-update")),
             phase: UpdatePhase::Replace,
         };
 

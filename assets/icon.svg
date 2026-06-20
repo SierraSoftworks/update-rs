@@ -1,0 +1,31 @@
+<svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="update-rs icon">
+  <title>update-rs</title>
+  <defs>
+    <linearGradient id="refresh" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5e9bff"/>
+      <stop offset="45%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#14306e"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="35%" stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="60%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- A refresh glyph: two 150° circular arcs (r=40 about the centre), 180°
+       apart, each ending in a triangular arrowhead pointing clockwise into the
+       gap, with a white gloss overlay on top. -->
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 118.64 69.65 A 40 40 0 0 1 51.72 108.28" fill="none" stroke="url(#refresh)" stroke-width="13"/>
+    <path d="M 41.36 90.35 A 40 40 0 0 1 108.28 51.72" fill="none" stroke="url(#refresh)" stroke-width="13"/>
+    <path d="M 40.4 97 L 60.2 99.8 L 43.2 116.8 Z" fill="url(#refresh)"/>
+    <path d="M 119.6 63 L 99.8 60.2 L 116.8 43.2 Z" fill="url(#refresh)"/>
+
+    <path d="M 118.64 69.65 A 40 40 0 0 1 51.72 108.28" fill="none" stroke="url(#gloss)" stroke-width="13"/>
+    <path d="M 41.36 90.35 A 40 40 0 0 1 108.28 51.72" fill="none" stroke="url(#gloss)" stroke-width="13"/>
+    <path d="M 40.4 97 L 60.2 99.8 L 43.2 116.8 Z" fill="url(#gloss)"/>
+    <path d="M 119.6 63 L 99.8 60.2 L 116.8 43.2 Z" fill="url(#gloss)"/>
+  </g>
+  <ellipse cx="62" cy="42" rx="26" ry="6" fill="#ffffff" opacity="0.28"/>
+</svg>

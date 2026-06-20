@@ -1,0 +1,13 @@
+# Windows' installer-detection heuristic forces UAC elevation on any executable
+# whose file name contains "update", "setup", "install", or "patch" — which
+# includes this crate's own test/example binaries (e.g. `update_rs-<hash>.exe`).
+# Without an embedded application manifest those binaries fail to launch with
+# ERROR_ELEVATION_REQUIRED (Win32 error 740), so `cargo test` can't run them.
+#
+# Forcing the RunAsInvoker compatibility layer makes Cargo launch them with the
+# caller's token instead of prompting for elevation. This is the very problem
+# `update-rs` helps consumers solve at the application level with an `asInvoker`
+# manifest — see `examples/windows-manifest/`. The variable is harmless on
+# non-Windows platforms.
+[env]
+__COMPAT_LAYER = "RunAsInvoker"

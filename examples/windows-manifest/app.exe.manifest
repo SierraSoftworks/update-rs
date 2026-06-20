@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity
+    type="win32"
+    name="YourCompany.YourApp"
+    version="{VERSION}"
+  />
+  <description>Your application description.</description>
+
+  <!-- CRITICAL FOR SELF-UPDATE: run with the caller's privileges. Declaring
+       asInvoker opts this binary out of Windows' installer-detection heuristic,
+       which would otherwise auto-request UAC elevation for executables whose
+       names contain update/setup/install/patch — and fail the relaunch with
+       ERROR_ELEVATION_REQUIRED (Win32 error 740) when elevation is unavailable
+       or declined. -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <!-- Declare support for the modern Windows releases you target. -->
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 / Windows 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+      <!-- Windows 8.1 -->
+      <supportedOS Id="{1f676c76-80e1-4239-95bb-83d0f6d0da78}"/>
+    </application>
+  </compatibility>
+
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <!-- Use UTF-8 for the active code page so paths and output containing
+           Unicode characters are handled correctly. -->
+      <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+      <!-- Opt in to long path support for deeply nested directory trees. -->
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+    </windowsSettings>
+  </application>
+</assembly>

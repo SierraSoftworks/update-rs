@@ -1,25 +1,36 @@
 [package]
-name = "update"
-authors = ["Benjamin Pannell <benjamin@pannell.dev>"]
-version = "0.1.0"
-edition = "2021"
+name = "update-rs"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Self-contained, three-phase in-place self-updates for Rust applications."
+authors = ["Sierra Softworks <contact@sierrasoftworks.com>"]
+license = "MIT"
+repository = "https://github.com/SierraSoftworks/update-rs"
+homepage = "https://github.com/SierraSoftworks/update-rs"
+documentation = "https://docs.rs/update-rs"
+readme = "README.md"
+keywords = ["self-update", "updater", "github", "release", "autoupdate"]
+categories = ["development-tools"]
+exclude = [".github/", "assets/", "docs/", "examples/", "AGENTS.md", "CLAUDE.md"]
 
+[lib]
+name = "update_rs"
 
 [dependencies]
 async-trait = "0.1"
-http = "0.2"
-human-errors = "0.1.2"
-futures = "0.3"
-itertools = "0.10"
-log = "0.4"
-reqwest = { version = "0.11.6", default-features = false, features = ["rustls-tls", "json", "stream"] }
+futures-util = "0.3"
+human-errors = "0.2.3"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 semver = "1.0"
-serde = { version = "1.0", features = ["derive", "rc"] }
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tokio = { version = "1.13", features = ["rt", "time", "fs", "process", "macros", "signal"] }
-
+sha2 = "0.10"
+tokio = { version = "1.0", features = ["fs", "time"] }
+tracing = "0.1"
 
 [dev-dependencies]
-mocktopus = "0.7.11"
-tempfile = "3.2"
-tokio-test = "0.4"
+mockall = "0.14"
+tempfile = "3"
+wiremock = "0.6"
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
