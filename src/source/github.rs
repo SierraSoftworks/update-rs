@@ -1,4 +1,9 @@
 use super::Source;
+#[cfg(not(feature = "tracing"))]
+use log::debug;
+#[cfg(feature = "tracing")]
+use tracing::debug;
+
 use crate::{Error, Release, ReleaseVariant, glob};
 use futures_util::StreamExt;
 use human_errors::ResultExt;
@@ -6,7 +11,6 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::io::Write;
-use tracing::debug;
 
 /// The `User-Agent` header sent with every request, built from this crate's
 /// version at compile time. GitHub requires a `User-Agent` on all API requests.
@@ -168,6 +172,7 @@ impl Source for GitHubSource {
 }
 
 impl GitHubSource {
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self)))]
     async fn get(&self, uri: &str) -> Result<reqwest::Response, Error> {
         self.client
             .get(uri)
@@ -224,6 +229,7 @@ impl GitHubSource {
             })
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, into)))]
     async fn download_to_file<W: Write + Send>(
         &self,
         uri: &str,

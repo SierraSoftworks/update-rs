@@ -80,6 +80,39 @@
 //! (`yourapp-linux-amd64`) or [`naming::rust`] for the Rust target triple
 //! (`yourapp-x86_64-unknown-linux-gnu`).
 //!
+//! # Customising the relaunch
+//!
+//! The updater relaunches your binary between phases with the [`RESUME_FLAG`]
+//! and serialized state. To thread your own context into those child processes —
+//! a `--trace-context` value, an `APP_UPDATING=1` environment variable, a channel
+//! or verbosity flag — add it with
+//! [`with_relaunch_args`](UpdateManager::with_relaunch_args) /
+//! [`with_relaunch_env`](UpdateManager::with_relaunch_env); the launcher appends
+//! it after the library's own arguments. (The `opentelemetry` feature below
+//! already propagates the trace context for you, so that case needs no wiring.)
+//!
+//! # Observability
+//!
+//! By default the crate emits its diagnostic events through the lightweight
+//! [`log`](https://docs.rs/log) facade, which does nothing until the application
+//! installs a logger. Two opt-in features build on that:
+//!
+//! - **`tracing`** routes diagnostics through
+//!   [`tracing`](https://docs.rs/tracing) instead of `log`, adding
+//!   `#[instrument]` spans and structured events for each step of the update.
+//! - **`opentelemetry`** (which implies `tracing`) carries the active
+//!   OpenTelemetry trace context *inside the serialized [`UpdateState`]* — not
+//!   as an extra command-line argument — so the three phases, which each run in
+//!   a separate process, stitch together into one distributed trace. It reads
+//!   and writes only the **global** propagator
+//!   (`opentelemetry::global::get_text_map_propagator`), so the host
+//!   application stays in full control of how (and whether) traces are exported;
+//!   if no propagator is installed, the feature is a no-op.
+//!
+//! There is nothing extra to wire up: detect [`RESUME_FLAG`] and call
+//! [`resume_from_arg`](UpdateManager::resume_from_arg) as usual, and the trace
+//! context rides along with the update state automatically.
+//!
 //! # Windows: avoiding UAC / Error 740
 //!
 //! Because the temporary binary is named like `yourapp-<tag>.exe`, Windows'

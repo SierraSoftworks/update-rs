@@ -1,9 +1,13 @@
+#[cfg(not(feature = "tracing"))]
+use log::debug;
+#[cfg(feature = "tracing")]
+use tracing::debug;
+
 use crate::{Error, Release};
 use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
-use tracing::debug;
 
 #[cfg(test)]
 use mockall::automock;

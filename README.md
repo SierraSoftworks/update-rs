@@ -62,8 +62,17 @@ running app ──prepare──▶ temp binary ──replace──▶ updated ap
 - **Verified downloads** — when GitHub reports a SHA-256 digest for an asset, the
   download is checked against it before the binary is swapped in, so a corrupted
   or tampered artifact is rejected.
+- **Customisable relaunch** — thread your own command-line arguments and
+  environment variables into every relaunched update process to carry application
+  context through the update (a `--trace-context` value, an `APP_UPDATING=1`
+  flag, ...), on top of the library's own resume flag.
 - **Friendly errors** — every failure carries a description and actionable advice,
   powered by [`human-errors`](https://crates.io/crates/human-errors).
+- **Observability** — diagnostics via the [`log`](https://crates.io/crates/log)
+  facade by default, or opt into [`tracing`](https://crates.io/crates/tracing)
+  spans and propagate the OpenTelemetry trace context *through the update state*,
+  so the three phases form a single distributed trace (see
+  [Observability](#observability-log-tracing--opentelemetry)).
 - **Async** (Tokio) and **cross-platform** (Windows, Linux, macOS), with
   first-class handling of the awkward Windows cases.
 
@@ -121,6 +130,51 @@ Two parts of the contract are load-bearing:
 - **Exit immediately when `update` or `resume_from_arg` returns `Ok(true)`.** A
   follow-up phase has been launched in a separate process, and it needs your
   process to release the binary so it can replace it.
+
+### Threading context through a relaunch
+
+The updater relaunches your binary between phases. If your application needs to
+carry its own context into those child processes — a `--trace-context` argument,
+an `APP_UPDATING=1` environment variable, a channel or verbosity flag — configure
+it on the manager, and the launcher appends it after the library's own resume
+flag and serialized state:
+
+```rust
+let manager = UpdateManager::new(source)
+    .with_relaunch_args(["--trace-context", &trace_context])
+    .with_relaunch_env("APP_UPDATING", "1");
+```
+
+(With the `opentelemetry` feature the trace context is already propagated for you
+inside the update state — see [Observability](#observability-log-tracing--opentelemetry)
+— so you only need this for application-specific behaviour.)
+
+## Observability (log, tracing & OpenTelemetry)
+
+By default the crate emits its diagnostic events through the lightweight
+[`log`](https://crates.io/crates/log) facade, which does nothing until your
+application installs a logger. Two opt-in features build on that:
+
+```toml
+[dependencies]
+update-rs = { version = "0.3", features = ["opentelemetry"] }
+```
+
+- **`tracing`** routes diagnostics through
+  [`tracing`](https://crates.io/crates/tracing) instead of `log`, adding
+  `#[instrument]` spans and structured events for each step of the update.
+- **`opentelemetry`** (which implies `tracing`) carries the active OpenTelemetry
+  trace context **inside the serialized `UpdateState`** — *not* as an extra
+  command-line argument — so the three phases, which each run in a separate
+  process, stitch together into one distributed trace.
+
+There's nothing extra to wire up: detect `RESUME_FLAG` and call `resume_from_arg`
+as usual, and the trace context rides along with the update state automatically.
+The feature reads and writes only the **global** propagator
+(`opentelemetry::global::get_text_map_propagator`), so your application stays in
+full control of how — and whether — traces are exported; with no propagator
+installed it is a no-op. The OpenTelemetry crates are pinned to the `0.32`/`0.33`
+series so the global propagator is shared with a host on that series.
 
 ## Windows: avoiding UAC and "Error 740"
 
