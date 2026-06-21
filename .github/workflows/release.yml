@@ -62,4 +62,11 @@ jobs:
       - name: Publish
         # --allow-dirty: Cargo.toml/Cargo.lock are patched with the tag version
         # at build time and intentionally left uncommitted.
-        run: cargo publish --allow-dirty --token ${{ steps.auth.outputs.token }}
+        #
+        # The OIDC token from crates-io-auth-action is passed via
+        # CARGO_REGISTRY_TOKEN rather than the deprecated `--token` flag; the
+        # Trusted Publishing model is unchanged (the token is still short-lived
+        # and minted from the workflow's OIDC identity).
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish --allow-dirty
