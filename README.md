@@ -62,10 +62,10 @@ running app ──prepare──▶ temp binary ──replace──▶ updated ap
 - **Verified downloads** — when GitHub reports a SHA-256 digest for an asset, the
   download is checked against it before the binary is swapped in, so a corrupted
   or tampered artifact is rejected.
-- **Customisable relaunch** — thread your own command-line arguments and
-  environment variables into every relaunched update process to carry application
-  context through the update (a `--trace-context` value, an `APP_UPDATING=1`
-  flag, ...), on top of the library's own resume flag.
+- **Customisable relaunch** — swap in a custom `Launcher` to control exactly how
+  the relaunch command is built: change how the update state is encoded (e.g. a
+  sub-command instead of the default resume flag), or thread your own arguments
+  and environment variables through to the next process.
 - **Friendly errors** — every failure carries a description and actionable advice,
   powered by [`human-errors`](https://crates.io/crates/human-errors).
 - **Observability** — diagnostics via the [`log`](https://crates.io/crates/log)
@@ -131,23 +131,49 @@ Two parts of the contract are load-bearing:
   follow-up phase has been launched in a separate process, and it needs your
   process to release the binary so it can replace it.
 
-### Threading context through a relaunch
+### Customising the relaunch
 
-The updater relaunches your binary between phases. If your application needs to
-carry its own context into those child processes — a `--trace-context` argument,
-an `APP_UPDATING=1` environment variable, a channel or verbosity flag — configure
-it on the manager, and the launcher appends it after the library's own resume
-flag and serialized state:
+The updater relaunches your binary between phases through a `Launcher`. For the
+common case — threading your own arguments or environment variables through to
+the relaunched process — configure the built-in `DefaultLauncher`; no custom
+launcher required:
 
 ```rust
-let manager = UpdateManager::new(source)
-    .with_relaunch_args(["--trace-context", &trace_context])
-    .with_relaunch_env("APP_UPDATING", "1");
+use update_rs::{DefaultLauncher, UpdateManager};
+
+let manager = UpdateManager::new(source).with_launcher(Box::new(
+    DefaultLauncher::new()
+        .with_arg("--updated")
+        .with_env("APP_UPDATING", "1"),
+));
 ```
+
+For more control, implement `Launcher` yourself — every method has a default, so
+you change just the part you need. Most commonly that's `resume_args`, which
+decides *how* the serialized state reaches the relaunched process; for example, to
+hand it to an `update --state <json>` sub-command (the convention Git-Tool uses)
+instead of the default resume flag:
+
+```rust
+use std::ffi::OsString;
+use update_rs::{Launcher, UpdateManager};
+
+struct SubcommandLauncher;
+impl Launcher for SubcommandLauncher {
+    fn resume_args(&self, state_json: &str) -> Vec<OsString> {
+        vec!["update".into(), "--state".into(), state_json.into()]
+    }
+}
+
+let manager = UpdateManager::new(source).with_launcher(Box::new(SubcommandLauncher));
+```
+
+Override `launch` for complete control over the relaunch command, reusing the
+provided `resume_args`, `detach` and `spawn` helpers as needed.
 
 (With the `opentelemetry` feature the trace context is already propagated for you
 inside the update state — see [Observability](#observability-log-tracing--opentelemetry)
-— so you only need this for application-specific behaviour.)
+— so that case needs no wiring.)
 
 ## Observability (log, tracing & OpenTelemetry)
 

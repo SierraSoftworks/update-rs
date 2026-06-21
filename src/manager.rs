@@ -5,7 +5,6 @@ use tracing::{debug, info};
 
 use crate::{Error, GitHubSource, Release, Source, UpdatePhase, UpdateState, cmd, fs};
 use human_errors::{OptionExt, ResultExt};
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
@@ -36,7 +35,6 @@ where
 
     launcher: Box<dyn cmd::Launcher + Send + Sync>,
     filesystem: Box<dyn fs::FileSystem + Send + Sync>,
-    relaunch: cmd::Relaunch,
 }
 
 impl<S> UpdateManager<S>
@@ -51,7 +49,6 @@ where
             source,
             launcher: cmd::default(),
             filesystem: fs::default(),
-            relaunch: cmd::Relaunch::default(),
         }
     }
 
@@ -62,54 +59,16 @@ where
         self
     }
 
-    /// Append a custom command-line argument passed to every process the updater
-    /// relaunches, in addition to the library's own
-    /// [`RESUME_FLAG`](crate::RESUME_FLAG) and serialized state.
+    /// Replace the [`Launcher`](crate::Launcher) used to relaunch the application
+    /// between update phases.
     ///
-    /// Useful for threading application-specific context through an update — for
-    /// example a `--trace-context` value, or a flag that tweaks behaviour while
-    /// the update is in progress. Call it repeatedly to add several arguments;
-    /// they are appended in order, after the resume flag.
-    pub fn with_relaunch_arg(mut self, arg: impl Into<OsString>) -> Self {
-        self.relaunch.args.push(arg.into());
-        self
-    }
-
-    /// Append several custom command-line arguments to every relaunched process.
-    /// See [`with_relaunch_arg`](Self::with_relaunch_arg).
-    pub fn with_relaunch_args<I, A>(mut self, args: I) -> Self
-    where
-        I: IntoIterator<Item = A>,
-        A: Into<OsString>,
-    {
-        self.relaunch.args.extend(args.into_iter().map(Into::into));
-        self
-    }
-
-    /// Set a custom environment variable on every process the updater relaunches.
-    ///
-    /// Call it repeatedly to set several variables. They are added to (not
-    /// replacing) the inherited environment of the relaunched process.
-    pub fn with_relaunch_env(
-        mut self,
-        key: impl Into<OsString>,
-        value: impl Into<OsString>,
-    ) -> Self {
-        self.relaunch.envs.push((key.into(), value.into()));
-        self
-    }
-
-    /// Set several custom environment variables on every relaunched process.
-    /// See [`with_relaunch_env`](Self::with_relaunch_env).
-    pub fn with_relaunch_envs<I, K, V>(mut self, envs: I) -> Self
-    where
-        I: IntoIterator<Item = (K, V)>,
-        K: Into<OsString>,
-        V: Into<OsString>,
-    {
-        self.relaunch
-            .envs
-            .extend(envs.into_iter().map(|(k, v)| (k.into(), v.into())));
+    /// The default ([`DefaultLauncher`](crate::DefaultLauncher)) relaunches with
+    /// the library's [`RESUME_FLAG`](crate::RESUME_FLAG) and spawns a detached
+    /// child. Provide your own to change how the relaunch command is built — for
+    /// example to pass the update state via a sub-command, or to thread your own
+    /// arguments and environment variables through to the next process.
+    pub fn with_launcher(mut self, launcher: Box<dyn cmd::Launcher + Send + Sync>) -> Self {
+        self.launcher = launcher;
         self
     }
 
@@ -381,7 +340,7 @@ where
     }
 
     fn launch(&self, app_path: &Path, state: &UpdateState) -> Result<(), Error> {
-        self.launcher.launch(app_path, state, &self.relaunch)
+        self.launcher.launch(app_path, state)
     }
 }
 
@@ -456,8 +415,8 @@ mod tests {
                 let temp_app_path = temp_app_path.clone();
                 mock.expect_launch()
                     .once()
-                    .withf(move |p, s, _| p == temp_app_path && s.phase == UpdatePhase::Replace)
-                    .returning(|_, _, _| Ok(()));
+                    .withf(move |p, s| p == temp_app_path && s.phase == UpdatePhase::Replace)
+                    .returning(|_, _| Ok(()));
             })
             .with_mock_fs(|mock| {
                 mock.expect_get_temp_app_path()
@@ -494,8 +453,8 @@ mod tests {
                 let app_path = app_path.clone();
                 mock.expect_launch()
                     .once()
-                    .withf(move |p, s, _| p == app_path && s.phase == UpdatePhase::Cleanup)
-                    .returning(|_, _, _| Ok(()));
+                    .withf(move |p, s| p == app_path && s.phase == UpdatePhase::Cleanup)
+                    .returning(|_, _| Ok(()));
             })
             .with_mock_fs(|mock| {
                 let app_path = app_path.clone();
@@ -525,56 +484,6 @@ mod tests {
             .expect("the update operation should succeed");
 
         assert!(has_update, "the update should be applied");
-    }
-
-    #[tokio::test]
-    async fn resume_forwards_custom_relaunch_customization() {
-        let temp = tempdir().unwrap();
-        let app_path = temp.path().join("app");
-        let temp_app_path = temp.path().join("app-temp");
-        std::fs::write(&app_path, "original").unwrap();
-        std::fs::write(&temp_app_path, "new").unwrap();
-
-        let manager = UpdateManager::<GitHubSource>::default()
-            .with_target_application(app_path.clone())
-            .with_relaunch_args(["--trace-context", "ctx"])
-            .with_relaunch_env("APP_UPDATING", "1")
-            .with_mock_launcher(|mock| {
-                mock.expect_launch()
-                    .once()
-                    .withf(|_app, _state, relaunch| {
-                        relaunch.args == [OsString::from("--trace-context"), OsString::from("ctx")]
-                            && relaunch.envs
-                                == [(OsString::from("APP_UPDATING"), OsString::from("1"))]
-                    })
-                    .returning(|_, _, _| Ok(()));
-            })
-            .with_mock_fs(|mock| {
-                let app_path = app_path.clone();
-                let app_path_for_copy = app_path.clone();
-                let temp_app_path = temp_app_path.clone();
-                mock.expect_get_temp_app_path().never();
-                mock.expect_delete_file()
-                    .once()
-                    .withf(move |p| p == app_path)
-                    .returning(|_| Ok(()));
-                mock.expect_copy_file()
-                    .once()
-                    .withf(move |src, dst| src == temp_app_path && dst == app_path_for_copy)
-                    .returning(|_, _| Ok(()));
-            });
-
-        let state = UpdateState {
-            phase: UpdatePhase::Replace,
-            target_application: Some(app_path.clone()),
-            temporary_application: Some(temp_app_path.clone()),
-            trace_context: None,
-        };
-
-        manager
-            .resume(&state)
-            .await
-            .expect("the update operation should succeed");
     }
 
     #[tokio::test]
