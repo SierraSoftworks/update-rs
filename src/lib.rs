@@ -141,6 +141,10 @@ pub use cmd::{DefaultLauncher, Launcher};
 pub use human_errors::Error;
 pub use manager::UpdateManager;
 pub use release::{Release, ReleaseVariant};
+/// Re-export of the [`reqwest`] version this crate is built against, so callers
+/// can construct a [`reqwest::Client`] of the exact type
+/// [`GitHubSource::with_client`] expects.
+pub use reqwest;
 pub use source::{GitHubSource, Source};
 pub use state::{UpdatePhase, UpdateState};
 

@@ -12,9 +12,20 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::io::Write;
 
-/// The `User-Agent` header sent with every request, built from this crate's
-/// version at compile time. GitHub requires a `User-Agent` on all API requests.
+/// The `User-Agent` header the crate's default client sends with every request,
+/// built from this crate's version at compile time. GitHub requires a
+/// `User-Agent` on all API requests.
 const USER_AGENT: &str = concat!("SierraSoftworks/update-rs v", env!("CARGO_PKG_VERSION"));
+
+/// Build the crate's default HTTP client, with its [`USER_AGENT`] set at the
+/// client level so it applies to every request — and is replaced wholesale when
+/// a caller supplies their own client via [`GitHubSource::with_client`].
+fn default_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
 
 /// A [`Source`] which lists and downloads releases from a GitHub repository's
 /// [releases API](https://docs.github.com/en/rest/releases).
@@ -75,8 +86,22 @@ impl GitHubSource {
             asset_pattern: asset_pattern.into(),
             release_tag_prefix: String::new(),
 
-            client: reqwest::Client::new(),
+            client: default_client(),
         }
+    }
+
+    /// Use a caller-provided [`reqwest::Client`] for every request instead of the
+    /// crate's default.
+    ///
+    /// This lets the consuming application apply its own client configuration —
+    /// proxy, TLS, timeouts, a custom `User-Agent`, default authentication
+    /// headers, and so on. The crate does **not** add its own `User-Agent` to a
+    /// caller-supplied client, so the client should set one itself (GitHub
+    /// requires a `User-Agent` on every request), for example via
+    /// [`reqwest::ClientBuilder::user_agent`].
+    pub fn with_client(mut self, client: reqwest::Client) -> Self {
+        self.client = client;
+        self
     }
 
     /// Strip `prefix` from each release's Git tag before parsing it as a
@@ -174,15 +199,13 @@ impl Source for GitHubSource {
 impl GitHubSource {
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(self)))]
     async fn get(&self, uri: &str) -> Result<reqwest::Response, Error> {
-        self.client
-            .get(uri)
-            .header("User-Agent", USER_AGENT)
-            .send()
-            .await
-            .wrap_system_err(
-                format!("Failed to make a request to '{uri}'."),
-                &["Check your network connection and try again, or report the issue if it persists."],
-            )
+        // The `User-Agent` is configured on the client (see `default_client` and
+        // `with_client`), so a caller-supplied client controls it and the crate
+        // never forces a second one onto the request.
+        self.client.get(uri).send().await.wrap_system_err(
+            format!("Failed to make a request to '{uri}'."),
+            &["Check your network connection and try again, or report the issue if it persists."],
+        )
     }
 
     fn get_releases_from_response(&self, releases: Vec<GitHubRelease>) -> Vec<Release> {
@@ -380,6 +403,50 @@ mod tests {
         format!(
             r#"[{{"name":"Version 2.0.0","tag_name":"v2.0.0","body":"Example Release","prerelease":false,"assets":[{{"name":"{asset}"{digest_field}}}]}}]"#
         )
+    }
+
+    #[tokio::test]
+    async fn default_client_sends_the_crate_user_agent() {
+        let server = MockServer::start().await;
+        // The mock only matches when the request carries the crate's default
+        // User-Agent, so get_releases failing would mean it was missing.
+        Mock::given(method("GET"))
+            .and(path("/repos/sierrasoftworks/update-rs/releases"))
+            .and(wiremock::matchers::header("user-agent", USER_AGENT))
+            .respond_with(ResponseTemplate::new(200).set_body_string(RELEASES_JSON))
+            .mount(&server)
+            .await;
+
+        let source = source_for(&server, "update-linux-amd64");
+        let releases = source
+            .get_releases()
+            .await
+            .expect("the request should carry the crate's default User-Agent");
+        assert_eq!(releases.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn with_client_uses_the_callers_user_agent() {
+        let server = MockServer::start().await;
+        // Only matches the caller's User-Agent, proving the crate uses the
+        // supplied client's UA and doesn't force its own onto it.
+        Mock::given(method("GET"))
+            .and(path("/repos/sierrasoftworks/update-rs/releases"))
+            .and(wiremock::matchers::header("user-agent", "my-app/1.2.3"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(RELEASES_JSON))
+            .mount(&server)
+            .await;
+
+        let client = reqwest::Client::builder()
+            .user_agent("my-app/1.2.3")
+            .build()
+            .unwrap();
+        let source = source_for(&server, "update-linux-amd64").with_client(client);
+        let releases = source
+            .get_releases()
+            .await
+            .expect("the request should carry the caller's User-Agent");
+        assert_eq!(releases.len(), 1);
     }
 
     #[tokio::test]
