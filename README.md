@@ -64,10 +64,11 @@ running app ──prepare──▶ temp binary ──replace──▶ updated ap
   or tampered artifact is rejected.
 - **Friendly errors** — every failure carries a description and actionable advice,
   powered by [`human-errors`](https://crates.io/crates/human-errors).
-- **Optional observability** — opt into [`tracing`](https://crates.io/crates/tracing)
+- **Observability** — diagnostics via the [`log`](https://crates.io/crates/log)
+  facade by default, or opt into [`tracing`](https://crates.io/crates/tracing)
   spans and propagate the OpenTelemetry trace context *through the update state*,
   so the three phases form a single distributed trace (see
-  [Observability](#observability-tracing--opentelemetry)).
+  [Observability](#observability-log-tracing--opentelemetry)).
 - **Async** (Tokio) and **cross-platform** (Windows, Linux, macOS), with
   first-class handling of the awkward Windows cases.
 
@@ -126,19 +127,20 @@ Two parts of the contract are load-bearing:
   follow-up phase has been launched in a separate process, and it needs your
   process to release the binary so it can replace it.
 
-## Observability (tracing & OpenTelemetry)
+## Observability (log, tracing & OpenTelemetry)
 
-Diagnostics are opt-in through two cargo features, both **off by default** — the
-crate pulls in no telemetry dependencies unless you ask for them:
+By default the crate emits its diagnostic events through the lightweight
+[`log`](https://crates.io/crates/log) facade, which does nothing until your
+application installs a logger. Two opt-in features build on that:
 
 ```toml
 [dependencies]
 update-rs = { version = "0.3", features = ["opentelemetry"] }
 ```
 
-- **`tracing`** instruments the updater with
-  [`tracing`](https://crates.io/crates/tracing) spans (`#[instrument]`) and emits
-  structured events for each step of the update.
+- **`tracing`** routes diagnostics through
+  [`tracing`](https://crates.io/crates/tracing) instead of `log`, adding
+  `#[instrument]` spans and structured events for each step of the update.
 - **`opentelemetry`** (which implies `tracing`) carries the active OpenTelemetry
   trace context **inside the serialized `UpdateState`** — *not* as an extra
   command-line argument — so the three phases, which each run in a separate

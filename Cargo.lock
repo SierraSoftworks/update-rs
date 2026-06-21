@@ -1516,6 +1516,7 @@ dependencies = [
  "async-trait",
  "futures-util",
  "human-errors",
+ "log",
  "mockall",
  "opentelemetry",
  "opentelemetry_sdk",

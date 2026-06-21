@@ -82,11 +82,13 @@
 //!
 //! # Observability
 //!
-//! Diagnostics are opt-in through two cargo features (both off by default, so
-//! the crate pulls in no telemetry dependencies unless you ask for them):
+//! By default the crate emits its diagnostic events through the lightweight
+//! [`log`](https://docs.rs/log) facade, which does nothing until the application
+//! installs a logger. Two opt-in features build on that:
 //!
-//! - **`tracing`** instruments the update with `tracing` spans
-//!   (`#[instrument]`) and emits structured events for each step.
+//! - **`tracing`** routes diagnostics through
+//!   [`tracing`](https://docs.rs/tracing) instead of `log`, adding
+//!   `#[instrument]` spans and structured events for each step of the update.
 //! - **`opentelemetry`** (which implies `tracing`) carries the active
 //!   OpenTelemetry trace context *inside the serialized [`UpdateState`]* — not
 //!   as an extra command-line argument — so the three phases, which each run in
@@ -114,7 +116,6 @@
 mod cmd;
 mod fs;
 mod glob;
-mod log;
 mod manager;
 pub mod naming;
 mod release;

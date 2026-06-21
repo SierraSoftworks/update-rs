@@ -1,4 +1,8 @@
-use crate::log::{debug, info};
+#[cfg(not(feature = "tracing"))]
+use log::{debug, info};
+#[cfg(feature = "tracing")]
+use tracing::{debug, info};
+
 use crate::{Error, GitHubSource, Release, Source, UpdatePhase, UpdateState, cmd, fs};
 use human_errors::{OptionExt, ResultExt};
 use std::path::{Path, PathBuf};

@@ -19,9 +19,9 @@ name = "update_rs"
 
 [features]
 default = []
-# Emit `tracing` spans (`#[instrument]`) and structured diagnostic events
-# describing the update process. Without this feature the crate carries no
-# `tracing` dependency and produces no diagnostics.
+# Emit diagnostics through `tracing` instead of the `log` crate, adding
+# `#[instrument]` spans and structured events. Without this feature the crate's
+# diagnostic events are emitted through the lightweight `log` facade (no spans).
 tracing = ["dep:tracing"]
 # Propagate the active OpenTelemetry trace context across the relaunch boundary
 # by carrying it inside the serialized `UpdateState`, so the three update phases
@@ -34,6 +34,10 @@ opentelemetry = ["tracing", "dep:opentelemetry", "dep:tracing-opentelemetry"]
 async-trait = "0.1"
 futures-util = "0.3"
 human-errors = "0.2.3"
+# The baseline logging facade: diagnostics are emitted through `log` unless the
+# `tracing` feature swaps them over to `tracing`. Both are no-ops at runtime
+# until the application installs a logger/subscriber.
+log = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }

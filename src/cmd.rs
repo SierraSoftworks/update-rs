@@ -1,4 +1,8 @@
-use crate::log::debug;
+#[cfg(not(feature = "tracing"))]
+use log::debug;
+#[cfg(feature = "tracing")]
+use tracing::debug;
+
 use crate::{Error, RESUME_FLAG, UpdateState};
 use human_errors::ResultExt;
 use std::{path::Path, process::Command};

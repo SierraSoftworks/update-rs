@@ -1,5 +1,9 @@
 use super::Source;
-use crate::log::debug;
+#[cfg(not(feature = "tracing"))]
+use log::debug;
+#[cfg(feature = "tracing")]
+use tracing::debug;
+
 use crate::{Error, Release, ReleaseVariant, glob};
 use futures_util::StreamExt;
 use human_errors::ResultExt;
