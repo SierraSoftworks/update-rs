@@ -1,7 +1,7 @@
+use crate::log::debug;
 use crate::{Error, RESUME_FLAG, UpdateState};
 use human_errors::ResultExt;
 use std::{path::Path, process::Command};
-use tracing::debug;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;

@@ -1,9 +1,9 @@
+use crate::log::debug;
 use crate::{Error, Release};
 use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
-use tracing::debug;
 
 #[cfg(test)]
 use mockall::automock;

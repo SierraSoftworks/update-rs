@@ -1,7 +1,7 @@
+use crate::log::{debug, info};
 use crate::{Error, GitHubSource, Release, Source, UpdatePhase, UpdateState, cmd, fs};
 use human_errors::{OptionExt, ResultExt};
 use std::path::{Path, PathBuf};
-use tracing::{debug, info};
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -75,6 +75,7 @@ where
     }
 
     /// List the releases available from the configured [`Source`].
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self)))]
     pub async fn get_releases(&self) -> Result<Vec<Release>, Error> {
         self.source.get_releases().await
     }
@@ -86,6 +87,10 @@ where
     /// in a separate process. Returns `Ok(true)` if an update was started, in
     /// which case the caller should exit promptly so the relaunched process can
     /// replace the running binary.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(skip(self, release), fields(release = %release.id, version = %release.version))
+    )]
     pub async fn update(&self, release: &Release) -> Result<bool, Error> {
         let state = UpdateState {
             target_application: Some(self.target_application.clone()),
@@ -93,6 +98,7 @@ where
                 self.filesystem
                     .get_temp_app_path(&self.target_application, release),
             ),
+            trace_context: None,
             phase: UpdatePhase::Prepare,
         };
 
@@ -185,6 +191,26 @@ where
     /// the [`RESUME_FLAG`](crate::RESUME_FLAG). Returns `Ok(true)` when a phase
     /// was processed and the process should exit.
     pub async fn resume(&self, state: &UpdateState) -> Result<bool, Error> {
+        #[cfg(feature = "tracing")]
+        {
+            use tracing::Instrument;
+
+            let span = tracing::info_span!("resume", phase = %state.phase);
+            // Re-parent this span onto the trace carried from the phase that
+            // relaunched us *before* it is entered, so all the work in this
+            // process continues that distributed trace. A no-op without the
+            // `opentelemetry` feature or a carried context.
+            state.adopt_trace_context(&span);
+            self.dispatch(state).instrument(span).await
+        }
+
+        #[cfg(not(feature = "tracing"))]
+        {
+            self.dispatch(state).await
+        }
+    }
+
+    async fn dispatch(&self, state: &UpdateState) -> Result<bool, Error> {
         match state.phase {
             UpdatePhase::NoUpdate => Ok(false),
             UpdatePhase::Prepare => self.prepare(state).await,
@@ -206,8 +232,12 @@ where
         self.resume(&state).await
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, state)))]
     async fn prepare(&self, state: &UpdateState) -> Result<bool, Error> {
-        let next_state = state.for_phase(UpdatePhase::Replace);
+        let mut next_state = state.for_phase(UpdatePhase::Replace);
+        // Hand the active trace context to the next process so the update's
+        // phases stitch together into a single distributed trace.
+        next_state.capture_trace_context();
         let update_source = state.temporary_application.clone().ok_or_system_err(
             "Could not launch the new application version to continue the update process (prepare -> replace phase).",
             &["Please report this issue to the application's maintainers, or try updating manually by downloading the latest release yourself."],
@@ -221,6 +251,7 @@ where
         Ok(true)
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, state)))]
     async fn replace(&self, state: &UpdateState) -> Result<bool, Error> {
         let update_source = state.temporary_application.clone().ok_or_system_err(
             "Could not locate the temporary update files needed to complete the update process (replace phase).",
@@ -240,12 +271,15 @@ where
             .await?;
 
         info!("Launching the updated application to perform the 'cleanup' phase of the update.");
-        let next_state = state.for_phase(UpdatePhase::Cleanup);
+        let mut next_state = state.for_phase(UpdatePhase::Cleanup);
+        // Carry the active trace context forward into the final phase too.
+        next_state.capture_trace_context();
         self.launch(&update_target, &next_state)?;
 
         Ok(true)
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, state)))]
     async fn cleanup(&self, state: &UpdateState) -> Result<bool, Error> {
         let update_source = state.temporary_application.clone().ok_or_system_err(
             "Could not locate the temporary update files needed to complete the update process (cleanup phase).",
@@ -424,6 +458,7 @@ mod tests {
             phase: UpdatePhase::Replace,
             target_application: Some(app_path.clone()),
             temporary_application: Some(temp_app_path.clone()),
+            trace_context: None,
         };
 
         let has_update = manager
@@ -463,6 +498,7 @@ mod tests {
             phase: UpdatePhase::Cleanup,
             target_application: Some(app_path.clone()),
             temporary_application: Some(temp_app_path.clone()),
+            trace_context: None,
         };
 
         let has_update = manager

@@ -64,6 +64,10 @@ running app ──prepare──▶ temp binary ──replace──▶ updated ap
   or tampered artifact is rejected.
 - **Friendly errors** — every failure carries a description and actionable advice,
   powered by [`human-errors`](https://crates.io/crates/human-errors).
+- **Optional observability** — opt into [`tracing`](https://crates.io/crates/tracing)
+  spans and propagate the OpenTelemetry trace context *through the update state*,
+  so the three phases form a single distributed trace (see
+  [Observability](#observability-tracing--opentelemetry)).
 - **Async** (Tokio) and **cross-platform** (Windows, Linux, macOS), with
   first-class handling of the awkward Windows cases.
 
@@ -121,6 +125,32 @@ Two parts of the contract are load-bearing:
 - **Exit immediately when `update` or `resume_from_arg` returns `Ok(true)`.** A
   follow-up phase has been launched in a separate process, and it needs your
   process to release the binary so it can replace it.
+
+## Observability (tracing & OpenTelemetry)
+
+Diagnostics are opt-in through two cargo features, both **off by default** — the
+crate pulls in no telemetry dependencies unless you ask for them:
+
+```toml
+[dependencies]
+update-rs = { version = "0.3", features = ["opentelemetry"] }
+```
+
+- **`tracing`** instruments the updater with
+  [`tracing`](https://crates.io/crates/tracing) spans (`#[instrument]`) and emits
+  structured events for each step of the update.
+- **`opentelemetry`** (which implies `tracing`) carries the active OpenTelemetry
+  trace context **inside the serialized `UpdateState`** — *not* as an extra
+  command-line argument — so the three phases, which each run in a separate
+  process, stitch together into one distributed trace.
+
+There's nothing extra to wire up: detect `RESUME_FLAG` and call `resume_from_arg`
+as usual, and the trace context rides along with the update state automatically.
+The feature reads and writes only the **global** propagator
+(`opentelemetry::global::get_text_map_propagator`), so your application stays in
+full control of how — and whether — traces are exported; with no propagator
+installed it is a no-op. The OpenTelemetry crates are pinned to the `0.32`/`0.33`
+series so the global propagator is shared with a host on that series.
 
 ## Windows: avoiding UAC and "Error 740"
 

@@ -52,6 +52,12 @@ jobs:
       - name: cargo test (default features)
         run: cargo test --no-fail-fast
 
+      # `tracing` without `opentelemetry` is the one feature combination the
+      # default and all-features runs don't exercise (opentelemetry implies
+      # tracing), so cover it explicitly to catch feature-gating rot.
+      - name: cargo test (tracing only)
+        run: cargo test --features tracing --no-fail-fast
+
       - name: cargo test (all features)
         run: cargo test --all-features --no-fail-fast
 
