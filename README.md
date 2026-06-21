@@ -63,9 +63,9 @@ running app ──prepare──▶ temp binary ──replace──▶ updated ap
   download is checked against it before the binary is swapped in, so a corrupted
   or tampered artifact is rejected.
 - **Customisable relaunch** — thread your own command-line arguments and
-  environment variables into every relaunched update process to carry application
-  context through the update (a `--trace-context` value, an `APP_UPDATING=1`
-  flag, ...), on top of the library's own resume flag.
+  environment variables into every relaunched update process, or swap in a custom
+  `Launcher` to control exactly how the relaunch command is built (e.g. pass the
+  update state via a sub-command instead of the default resume flag).
 - **Friendly errors** — every failure carries a description and actionable advice,
   powered by [`human-errors`](https://crates.io/crates/human-errors).
 - **Observability** — diagnostics via the [`log`](https://crates.io/crates/log)
@@ -148,6 +148,30 @@ let manager = UpdateManager::new(source)
 (With the `opentelemetry` feature the trace context is already propagated for you
 inside the update state — see [Observability](#observability-log-tracing--opentelemetry)
 — so you only need this for application-specific behaviour.)
+
+For more control, install a custom `Launcher`. Every trait method has a default,
+so you can change just the part you need — most commonly `resume_args`, which
+decides *how* the serialized state reaches the relaunched process. For example,
+to hand it to an `update --state <json>` sub-command (the convention Git-Tool
+uses) instead of the default resume flag:
+
+```rust
+use std::ffi::OsString;
+use update_rs::{Launcher, UpdateManager};
+
+struct SubcommandLauncher;
+impl Launcher for SubcommandLauncher {
+    fn resume_args(&self, state_json: &str) -> Vec<OsString> {
+        vec!["update".into(), "--state".into(), state_json.into()]
+    }
+}
+
+let manager = UpdateManager::new(source).with_launcher(Box::new(SubcommandLauncher));
+```
+
+Override `launch` instead for complete control over the relaunch command (reusing
+the provided `detach` and `spawn` helpers as needed). The default launcher
+(`DefaultLauncher`) is unchanged: the resume flag plus a detached child.
 
 ## Observability (log, tracing & OpenTelemetry)
 

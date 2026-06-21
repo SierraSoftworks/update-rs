@@ -62,6 +62,21 @@ where
         self
     }
 
+    /// Replace the [`Launcher`](crate::Launcher) used to relaunch the application
+    /// between update phases.
+    ///
+    /// The default ([`DefaultLauncher`](crate::DefaultLauncher)) relaunches with
+    /// the library's [`RESUME_FLAG`](crate::RESUME_FLAG) and spawns a detached
+    /// child. Provide your own to change how the relaunch command is built — for
+    /// example to pass the update state via a sub-command. Any
+    /// [`with_relaunch_arg`](Self::with_relaunch_arg) /
+    /// [`with_relaunch_env`](Self::with_relaunch_env) customization is still
+    /// handed to the launcher.
+    pub fn with_launcher(mut self, launcher: Box<dyn cmd::Launcher + Send + Sync>) -> Self {
+        self.launcher = launcher;
+        self
+    }
+
     /// Append a custom command-line argument passed to every process the updater
     /// relaunches, in addition to the library's own
     /// [`RESUME_FLAG`](crate::RESUME_FLAG) and serialized state.

@@ -133,6 +133,7 @@ mod release;
 mod source;
 mod state;
 
+pub use cmd::{DefaultLauncher, Launcher, Relaunch};
 pub use human_errors::Error;
 pub use manager::UpdateManager;
 pub use release::{Release, ReleaseVariant};
