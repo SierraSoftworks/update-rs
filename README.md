@@ -62,6 +62,10 @@ running app ──prepare──▶ temp binary ──replace──▶ updated ap
 - **Verified downloads** — when GitHub reports a SHA-256 digest for an asset, the
   download is checked against it before the binary is swapped in, so a corrupted
   or tampered artifact is rejected.
+- **Customisable relaunch** — thread your own command-line arguments and
+  environment variables into every relaunched update process to carry application
+  context through the update (a `--trace-context` value, an `APP_UPDATING=1`
+  flag, ...), on top of the library's own resume flag.
 - **Friendly errors** — every failure carries a description and actionable advice,
   powered by [`human-errors`](https://crates.io/crates/human-errors).
 - **Observability** — diagnostics via the [`log`](https://crates.io/crates/log)
@@ -126,6 +130,24 @@ Two parts of the contract are load-bearing:
 - **Exit immediately when `update` or `resume_from_arg` returns `Ok(true)`.** A
   follow-up phase has been launched in a separate process, and it needs your
   process to release the binary so it can replace it.
+
+### Threading context through a relaunch
+
+The updater relaunches your binary between phases. If your application needs to
+carry its own context into those child processes — a `--trace-context` argument,
+an `APP_UPDATING=1` environment variable, a channel or verbosity flag — configure
+it on the manager, and the launcher appends it after the library's own resume
+flag and serialized state:
+
+```rust
+let manager = UpdateManager::new(source)
+    .with_relaunch_args(["--trace-context", &trace_context])
+    .with_relaunch_env("APP_UPDATING", "1");
+```
+
+(With the `opentelemetry` feature the trace context is already propagated for you
+inside the update state — see [Observability](#observability-log-tracing--opentelemetry)
+— so you only need this for application-specific behaviour.)
 
 ## Observability (log, tracing & OpenTelemetry)
 

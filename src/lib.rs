@@ -80,6 +80,17 @@
 //! (`yourapp-linux-amd64`) or [`naming::rust`] for the Rust target triple
 //! (`yourapp-x86_64-unknown-linux-gnu`).
 //!
+//! # Customising the relaunch
+//!
+//! The updater relaunches your binary between phases with the [`RESUME_FLAG`]
+//! and serialized state. To thread your own context into those child processes —
+//! a `--trace-context` value, an `APP_UPDATING=1` environment variable, a channel
+//! or verbosity flag — add it with
+//! [`with_relaunch_args`](UpdateManager::with_relaunch_args) /
+//! [`with_relaunch_env`](UpdateManager::with_relaunch_env); the launcher appends
+//! it after the library's own arguments. (The `opentelemetry` feature below
+//! already propagates the trace context for you, so that case needs no wiring.)
+//!
 //! # Observability
 //!
 //! By default the crate emits its diagnostic events through the lightweight
