@@ -133,12 +133,26 @@ Two parts of the contract are load-bearing:
 
 ### Customising the relaunch
 
-The updater relaunches your binary between phases through a `Launcher`. Install
-your own with `with_launcher` to control exactly how the relaunch command is
-built. Every trait method has a default, so you change just the part you need —
-most commonly `resume_args`, which decides *how* the serialized state reaches the
-relaunched process. For example, to hand it to an `update --state <json>`
-sub-command (the convention Git-Tool uses) instead of the default resume flag:
+The updater relaunches your binary between phases through a `Launcher`. For the
+common case — threading your own arguments or environment variables through to
+the relaunched process — configure the built-in `DefaultLauncher`; no custom
+launcher required:
+
+```rust
+use update_rs::{DefaultLauncher, UpdateManager};
+
+let manager = UpdateManager::new(source).with_launcher(Box::new(
+    DefaultLauncher::new()
+        .with_arg("--updated")
+        .with_env("APP_UPDATING", "1"),
+));
+```
+
+For more control, implement `Launcher` yourself — every method has a default, so
+you change just the part you need. Most commonly that's `resume_args`, which
+decides *how* the serialized state reaches the relaunched process; for example, to
+hand it to an `update --state <json>` sub-command (the convention Git-Tool uses)
+instead of the default resume flag:
 
 ```rust
 use std::ffi::OsString;
@@ -154,11 +168,8 @@ impl Launcher for SubcommandLauncher {
 let manager = UpdateManager::new(source).with_launcher(Box::new(SubcommandLauncher));
 ```
 
-Override `launch` instead for complete control over the relaunch command — for
-instance to thread your own arguments or environment variables (a `--trace-context`
-value, an `APP_UPDATING=1` flag, ...) through to the next process — reusing the
-provided `resume_args`, `detach` and `spawn` helpers as needed. The default
-launcher (`DefaultLauncher`) is unchanged: the resume flag plus a detached child.
+Override `launch` for complete control over the relaunch command, reusing the
+provided `resume_args`, `detach` and `spawn` helpers as needed.
 
 (With the `opentelemetry` feature the trace context is already propagated for you
 inside the update state — see [Observability](#observability-log-tracing--opentelemetry)

@@ -83,14 +83,17 @@
 //! # Customising the relaunch
 //!
 //! The updater relaunches your binary between phases through a [`Launcher`]. The
-//! default ([`DefaultLauncher`]) passes the [`RESUME_FLAG`] and serialized state
-//! and spawns a detached child, but you can install your own with
-//! [`with_launcher`](UpdateManager::with_launcher) to control exactly how the
-//! relaunch command is built — change [`resume_args`](Launcher::resume_args) to
-//! hand the state to a sub-command, or override [`launch`](Launcher::launch) to
-//! add your own arguments or environment variables. (The `opentelemetry` feature
-//! below already propagates the trace context for you, so that case needs no
-//! wiring.)
+//! default, [`DefaultLauncher`], passes the [`RESUME_FLAG`] and serialized state
+//! and spawns a detached child — and can thread your own arguments and
+//! environment variables through to the relaunched process via its
+//! [`with_arg`](DefaultLauncher::with_arg) /
+//! [`with_env`](DefaultLauncher::with_env) builders, so the common cases need no
+//! custom launcher. For more control, install any [`Launcher`] with
+//! [`with_launcher`](UpdateManager::with_launcher): override
+//! [`resume_args`](Launcher::resume_args) to hand the state to a sub-command, or
+//! [`launch`](Launcher::launch) for the whole command. (The `opentelemetry`
+//! feature below already propagates the trace context for you, so that case needs
+//! no wiring.)
 //!
 //! # Observability
 //!
