@@ -62,10 +62,10 @@ running app ──prepare──▶ temp binary ──replace──▶ updated ap
 - **Verified downloads** — when GitHub reports a SHA-256 digest for an asset, the
   download is checked against it before the binary is swapped in, so a corrupted
   or tampered artifact is rejected.
-- **Customisable relaunch** — thread your own command-line arguments and
-  environment variables into every relaunched update process, or swap in a custom
-  `Launcher` to control exactly how the relaunch command is built (e.g. pass the
-  update state via a sub-command instead of the default resume flag).
+- **Customisable relaunch** — swap in a custom `Launcher` to control exactly how
+  the relaunch command is built: change how the update state is encoded (e.g. a
+  sub-command instead of the default resume flag), or thread your own arguments
+  and environment variables through to the next process.
 - **Friendly errors** — every failure carries a description and actionable advice,
   powered by [`human-errors`](https://crates.io/crates/human-errors).
 - **Observability** — diagnostics via the [`log`](https://crates.io/crates/log)
@@ -131,29 +131,14 @@ Two parts of the contract are load-bearing:
   follow-up phase has been launched in a separate process, and it needs your
   process to release the binary so it can replace it.
 
-### Threading context through a relaunch
+### Customising the relaunch
 
-The updater relaunches your binary between phases. If your application needs to
-carry its own context into those child processes — a `--trace-context` argument,
-an `APP_UPDATING=1` environment variable, a channel or verbosity flag — configure
-it on the manager, and the launcher appends it after the library's own resume
-flag and serialized state:
-
-```rust
-let manager = UpdateManager::new(source)
-    .with_relaunch_args(["--trace-context", &trace_context])
-    .with_relaunch_env("APP_UPDATING", "1");
-```
-
-(With the `opentelemetry` feature the trace context is already propagated for you
-inside the update state — see [Observability](#observability-log-tracing--opentelemetry)
-— so you only need this for application-specific behaviour.)
-
-For more control, install a custom `Launcher`. Every trait method has a default,
-so you can change just the part you need — most commonly `resume_args`, which
-decides *how* the serialized state reaches the relaunched process. For example,
-to hand it to an `update --state <json>` sub-command (the convention Git-Tool
-uses) instead of the default resume flag:
+The updater relaunches your binary between phases through a `Launcher`. Install
+your own with `with_launcher` to control exactly how the relaunch command is
+built. Every trait method has a default, so you change just the part you need —
+most commonly `resume_args`, which decides *how* the serialized state reaches the
+relaunched process. For example, to hand it to an `update --state <json>`
+sub-command (the convention Git-Tool uses) instead of the default resume flag:
 
 ```rust
 use std::ffi::OsString;
@@ -169,9 +154,15 @@ impl Launcher for SubcommandLauncher {
 let manager = UpdateManager::new(source).with_launcher(Box::new(SubcommandLauncher));
 ```
 
-Override `launch` instead for complete control over the relaunch command (reusing
-the provided `detach` and `spawn` helpers as needed). The default launcher
-(`DefaultLauncher`) is unchanged: the resume flag plus a detached child.
+Override `launch` instead for complete control over the relaunch command — for
+instance to thread your own arguments or environment variables (a `--trace-context`
+value, an `APP_UPDATING=1` flag, ...) through to the next process — reusing the
+provided `resume_args`, `detach` and `spawn` helpers as needed. The default
+launcher (`DefaultLauncher`) is unchanged: the resume flag plus a detached child.
+
+(With the `opentelemetry` feature the trace context is already propagated for you
+inside the update state — see [Observability](#observability-log-tracing--opentelemetry)
+— so that case needs no wiring.)
 
 ## Observability (log, tracing & OpenTelemetry)
 

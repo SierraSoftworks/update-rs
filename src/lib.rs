@@ -82,14 +82,15 @@
 //!
 //! # Customising the relaunch
 //!
-//! The updater relaunches your binary between phases with the [`RESUME_FLAG`]
-//! and serialized state. To thread your own context into those child processes —
-//! a `--trace-context` value, an `APP_UPDATING=1` environment variable, a channel
-//! or verbosity flag — add it with
-//! [`with_relaunch_args`](UpdateManager::with_relaunch_args) /
-//! [`with_relaunch_env`](UpdateManager::with_relaunch_env); the launcher appends
-//! it after the library's own arguments. (The `opentelemetry` feature below
-//! already propagates the trace context for you, so that case needs no wiring.)
+//! The updater relaunches your binary between phases through a [`Launcher`]. The
+//! default ([`DefaultLauncher`]) passes the [`RESUME_FLAG`] and serialized state
+//! and spawns a detached child, but you can install your own with
+//! [`with_launcher`](UpdateManager::with_launcher) to control exactly how the
+//! relaunch command is built — change [`resume_args`](Launcher::resume_args) to
+//! hand the state to a sub-command, or override [`launch`](Launcher::launch) to
+//! add your own arguments or environment variables. (The `opentelemetry` feature
+//! below already propagates the trace context for you, so that case needs no
+//! wiring.)
 //!
 //! # Observability
 //!
@@ -133,7 +134,7 @@ mod release;
 mod source;
 mod state;
 
-pub use cmd::{DefaultLauncher, Launcher, Relaunch};
+pub use cmd::{DefaultLauncher, Launcher};
 pub use human_errors::Error;
 pub use manager::UpdateManager;
 pub use release::{Release, ReleaseVariant};
