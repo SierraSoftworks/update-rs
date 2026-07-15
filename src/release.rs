@@ -61,8 +61,8 @@ impl PartialEq<Release> for Release {
 impl std::fmt::Display for Release {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.prerelease {
-            false => write!(f, "{}", &self.id),
-            true => write!(f, "{}-beta", &self.id),
+            false => write!(f, "{}", self.id),
+            true => write!(f, "{}-beta", self.id),
         }
     }
 }
@@ -81,7 +81,7 @@ pub struct ReleaseVariant {
 
 impl std::fmt::Display for ReleaseVariant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", &self.name)
+        write!(f, "{}", self.name)
     }
 }
 
