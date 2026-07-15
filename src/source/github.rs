@@ -129,7 +129,7 @@ impl Default for GitHubSource {
 
 impl std::fmt::Debug for GitHubSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "GitHub - {} ({})", &self.repo, &self.asset_pattern)
+        write!(f, "GitHub - {} ({})", self.repo, self.asset_pattern)
     }
 }
 
