@@ -8,9 +8,13 @@ on:
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
+      - ".cargo/audit.toml"
+      - ".github/workflows/security-audit.yml"
 
 permissions:
   contents: read
+  # audit-check reports its findings as a check run on the commit.
+  checks: write
   issues: write
 
 jobs:
