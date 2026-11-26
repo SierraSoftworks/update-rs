@@ -1,0 +1,10 @@
+# Configuration for `cargo audit` (also read by `rustsec/audit-check` in the
+# Security Audit workflow).
+[advisories]
+ignore = [
+    # quinn-udp: receive loop can spin after a truncated datagram. quinn-udp is
+    # never compiled into this crate: it is only in Cargo.lock because reqwest
+    # lists `quinn` as an optional (HTTP/3) dependency, which we don't enable.
+    # `cargo tree --all-features --target all -i quinn-udp` prints nothing.
+    "RUSTSEC-2026-0538",
+]
